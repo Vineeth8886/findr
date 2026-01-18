@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import Header from './components/Header';
 import FileUpload from './components/FileUpload';
 import ProductSelector from './components/ProductSelector';
@@ -283,6 +284,7 @@ const App: React.FC = () => {
           </div>
         )}
       </main>
+      <SpeedInsights />
     </div>
   );
 };
