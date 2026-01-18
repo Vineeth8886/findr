@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import FileUpload from './components/FileUpload';
 import ProductSelector from './components/ProductSelector';
@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const [isQuotaError, setIsQuotaError] = useState(false);
 
   const [history, setHistory] = useState<ProductResult[][]>(() => {
     const saved = localStorage.getItem('findr_history');
@@ -69,18 +70,29 @@ const App: React.FC = () => {
     }
   }, [results, state]);
 
+  // NON-LINEAR PROGRESS LOGIC
   useEffect(() => {
-    let interval: number;
-    if (loading && progress < 98) {
-      interval = window.setInterval(() => {
+    let timeout: number;
+    if (loading && progress < 99) {
+      const run = () => {
         setProgress(prev => {
-          const jitter = Math.random() > 0.8 ? 0.05 : 1;
-          const increment = prev < 30 ? 6 * jitter : prev < 70 ? 1 * jitter : 0.2 * jitter;
-          return Math.min(prev + increment, 98);
+          let inc = 0.5;
+          if (prev < 15) inc = 4;
+          else if (prev < 40) inc = 1.2;
+          else if (prev < 75) inc = 0.4;
+          else if (prev < 95) inc = 0.1;
+          else inc = 0.01;
+
+          const jitter = Math.random() > 0.9 ? 0 : 1;
+          return Math.min(prev + (inc * jitter), 99.5);
         });
-      }, 150);
+        
+        const baseSpeed = progress < 20 ? 100 : progress < 60 ? 300 : 800;
+        timeout = window.setTimeout(run, baseSpeed + (Math.random() * 200));
+      };
+      run();
     }
-    return () => clearInterval(interval);
+    return () => clearTimeout(timeout);
   }, [loading, progress]);
 
   useEffect(() => {
@@ -95,6 +107,7 @@ const App: React.FC = () => {
     setLoading(true);
     setProgress(0);
     setError(null);
+    setIsQuotaError(false);
     setState('analyzing');
     try {
       const identified = await identifyProducts(img);
@@ -103,9 +116,14 @@ const App: React.FC = () => {
       setTimeout(() => {
         setState('selecting');
         setLoading(false);
-      }, 800);
+      }, 1000);
     } catch (err: any) {
-      setError(`Neural Scan Failed: ${err.message || "Invalid response format"}`);
+      if (err.message === 'QUOTA_EXCEEDED') {
+        setIsQuotaError(true);
+        setError("AI Capacity Reached. Switch to Manual Search.");
+      } else {
+        setError(`Neural Scan Failed: ${err.message || "Invalid response format"}`);
+      }
       setState('upload');
       setLoading(false);
     }
@@ -132,6 +150,7 @@ const App: React.FC = () => {
     }
     setLoading(true);
     setError(null);
+    setIsQuotaError(false);
     setState('sourcing');
     setProgress(5);
     try {
@@ -144,9 +163,14 @@ const App: React.FC = () => {
       setTimeout(() => {
         setState('results');
         setLoading(false);
-      }, 500);
+      }, 1000);
     } catch (err: any) {
-      setError(`Search Error: ${err.message || "Network failure"}`);
+      if (err.message === 'QUOTA_EXCEEDED') {
+        setIsQuotaError(true);
+        setError("Search Quota Reached. Use the Manual Search Bridge below.");
+      } else {
+        setError(`Search Error: ${err.message || "Network failure"}`);
+      }
       setState('selecting');
       setLoading(false);
     }
@@ -159,26 +183,50 @@ const App: React.FC = () => {
     setSelectedIds(new Set());
     setResults([]);
     setError(null);
+    setIsQuotaError(false);
     setProgress(0);
     setActiveView('search');
+  };
+
+  const handleManualSearchFallback = () => {
+    const selectedProducts = candidates.filter(c => selectedIds.has(c.id));
+    selectedProducts.forEach(p => {
+      const query = `${p.name} B2B vendors dealers India ${zipCode}`;
+      window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
+    });
+  };
+
+  const handleHomeClick = () => {
+    if (state === 'setup') return;
+    reset();
   };
 
   const selectedNames = candidates.filter(c => selectedIds.has(c.id)).map(c => c.name);
 
   return (
     <div className="min-h-screen pb-12">
-      <Header onViewChange={setActiveView} activeView={activeView} />
+      <Header onViewChange={setActiveView} onHomeClick={handleHomeClick} activeView={activeView} />
       
-      {/* Global Error Banner */}
+      {/* Global Error Banner / Quota Bridge */}
       {error && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-lg bg-red-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center justify-between animate-in slide-in-from-top-4">
-          <div className="flex items-center gap-3">
-            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
-            <span className="text-xs font-black uppercase tracking-widest">{error}</span>
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-lg bg-red-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex flex-col gap-4 animate-in slide-in-from-top-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+              <span className="text-xs font-black uppercase tracking-widest">{error}</span>
+            </div>
+            <button onClick={() => { setError(null); setIsQuotaError(false); }} className="p-2 hover:bg-white/10 rounded-full">
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
           </div>
-          <button onClick={() => setError(null)} className="p-2 hover:bg-white/10 rounded-full">
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          </button>
+          {isQuotaError && (
+            <button 
+              onClick={handleManualSearchFallback}
+              className="w-full py-3 bg-white text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-lg"
+            >
+              Open Manual Search Bridge
+            </button>
+          )}
         </div>
       )}
 

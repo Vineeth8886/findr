@@ -24,8 +24,8 @@ const parseRobustJson = (text: string) => {
 };
 
 const handleQuotaError = (e: any) => {
-  if (e.message?.includes('429') || e.status === 429) {
-    throw new Error("API Quota Reached. Please use a paid API key for high-volume procurement.");
+  if (e.message?.includes('429') || e.status === 429 || e.message?.toLowerCase().includes('quota')) {
+    throw new Error("QUOTA_EXCEEDED");
   }
   throw e;
 };
@@ -46,7 +46,7 @@ export const identifyProducts = async (base64Image: string): Promise<ProductCand
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // Switched to Flash to preserve your quota
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
@@ -89,7 +89,7 @@ export const fetchVendorsForProduct = async (
 ): Promise<ProductResult> => {
   const ai = getAI();
   const prompt = `
-    TASK: Find 3-5 real vendors in India for: "${product.name}".
+    TASK: Find 3-5 real B2B vendors or professional dealers in India for: "${product.name}".
     CONTEXT: ${product.description}. 
     LOCATION: Pincode ${zipCode}.
     
@@ -97,8 +97,9 @@ export const fetchVendorsForProduct = async (
   `;
 
   try {
+    // Switched to Flash for better quota limits while keeping Search Grounding
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Keep Pro for sourcing as it uses Search Grounding better
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -146,13 +147,15 @@ export const fetchVendorsForProduct = async (
     return {
       productName: product.name,
       tier: product.tier,
-      researchNote: parsed.researchNote || "Deep scan complete.",
+      researchNote: parsed.researchNote || "Verification cycle complete.",
       vendors: parsed.vendors || [],
       groundingSources: sources
     };
   } catch (e: any) {
     console.error("Sourcing Error:", e);
-    if (e.message?.includes('429')) return handleQuotaError(e);
+    if (e.message?.includes('429') || e.message?.toLowerCase().includes('quota')) {
+       return handleQuotaError(e);
+    }
     return {
       productName: product.name,
       tier: product.tier,

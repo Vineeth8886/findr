@@ -1,12 +1,12 @@
-
 import React from 'react';
 
 interface HeaderProps {
   onViewChange: (view: 'search' | 'vendors' | 'history') => void;
+  onHomeClick: () => void;
   activeView: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ onViewChange, activeView }) => {
+const Header: React.FC<HeaderProps> = ({ onViewChange, onHomeClick, activeView }) => {
   return (
     <header className="fixed top-0 left-0 w-full z-50 pointer-events-none">
       {/* Full-width Glass Bar: Ensures content scrolls cleanly behind the header */}
@@ -15,7 +15,7 @@ const Header: React.FC<HeaderProps> = ({ onViewChange, activeView }) => {
       <div className="relative max-w-7xl mx-auto py-3 md:py-5 px-4 md:px-8 flex justify-between items-center pointer-events-auto gap-3">
         {/* Brand Identity */}
         <div 
-          onClick={() => onViewChange('search')}
+          onClick={onHomeClick}
           className="flex items-center gap-2 md:gap-3 cursor-pointer group shrink-0"
         >
           <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-[#A8DADC] to-[#457B9D] text-white rounded-[0.7rem] md:rounded-[0.9rem] flex items-center justify-center shadow-md group-hover:scale-110 transition-transform relative">
