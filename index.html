@@ -1,0 +1,57 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Findr. | Visual Procurement Reimagined</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+          background: linear-gradient(135deg, #E8F5E9 0%, #E3F2FD 50%, #F3E5F5 100%);
+          background-attachment: fixed;
+        }
+
+        .findr-gradient-text {
+          background: linear-gradient(135deg, #A8DADC 0%, #457B9D 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+
+        .findr-dot {
+            display: inline-block;
+            width: 0.25em;
+            height: 0.25em;
+            background: linear-gradient(135deg, #A8DADC 0%, #457B9D 100%);
+            border-radius: 50%;
+            position: relative;
+            margin-left: 0.05em;
+            box-shadow: 0 2px 8px rgba(69, 123, 157, 0.3);
+            vertical-align: baseline;
+        }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.37.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3"
+  }
+}
+</script>
+</head>
+<body class="text-slate-900 antialiased">
+    <div id="root"></div>
+</body>
+</html>
