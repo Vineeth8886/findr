@@ -1,4 +1,3 @@
-
 {
   "name": "findr-procurement",
   "version": "1.0.0",
@@ -12,9 +11,7 @@
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@google/genai": "^1.37.0"
-  },
-  "devDependencies": {
+    "@google/genai": "^1.37.0",
     "vite": "^6.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.7.3",

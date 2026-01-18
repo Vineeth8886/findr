@@ -5,8 +5,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Vite doesn't define 'process' by default. 
-    // This provides a global 'process.env' object for the browser.
     'process.env': {
       API_KEY: JSON.stringify(process.env.API_KEY || '')
     }
@@ -18,5 +16,12 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', '@google/genai'],
+        },
+      },
+    },
   }
 });
