@@ -114,7 +114,10 @@ export const fetchVendorsForProduct = async (
       }
     });
 
-    const parsed = JSON.parse(response.text || '{"vendors": [], "researchNote": "No matches found."}');
+    // Clean citations like [1], [2] from the response text as they can break JSON.parse 
+    // when using search grounding tools.
+    const cleanJson = (response.text || '{"vendors": [], "researchNote": "No matches found."}').replace(/\[\d+\]/g, '');
+    const parsed = JSON.parse(cleanJson);
     
     // Extract grounding sources if available
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];

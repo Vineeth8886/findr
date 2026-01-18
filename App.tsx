@@ -16,7 +16,8 @@ declare global {
   }
 
   interface Window {
-    aistudio: AIStudio;
+    // Fixed: Changed to optional to match the environmental declaration and avoid "identical modifiers" error.
+    aistudio?: AIStudio;
   }
 }
 

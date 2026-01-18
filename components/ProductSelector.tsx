@@ -359,15 +359,15 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
 
       {/* 
         PREMIUM FLOATING ACTION BAR
-        Refined aesthetics: Pure black text for high visibility. Balanced font sizes.
+        Refined aesthetics: Proportional text sizing for mobile and desktop.
       */}
-      <div className="fixed bottom-4 md:bottom-12 left-1/2 -translate-x-1/2 w-[94%] max-w-4xl bg-white/95 backdrop-blur-3xl p-3 md:p-4 rounded-[2rem] md:rounded-[3rem] border border-white shadow-[0_40px_100px_-20px_rgba(0,0,0,0.12)] z-[60] flex flex-col md:flex-row items-stretch md:items-center gap-3">
+      <div className="fixed bottom-4 md:bottom-12 left-1/2 -translate-x-1/2 w-[94%] max-w-4xl bg-white/95 backdrop-blur-3xl p-2.5 md:p-4 rounded-[1.8rem] md:rounded-[3rem] border border-white shadow-[0_40px_100px_-20px_rgba(0,0,0,0.12)] z-[60] flex flex-col md:flex-row items-stretch md:items-center gap-2.5 md:gap-4">
         
         {/* Hub Selection Area */}
-        <div className="flex-1 bg-slate-50 rounded-[1.5rem] md:rounded-[2rem] flex items-center px-5 py-3 md:py-2.5 border border-slate-100 transition-all focus-within:bg-white focus-within:ring-2 focus-within:ring-slate-100">
-           <div className="flex flex-col pr-5 border-r border-slate-200 shrink-0">
+        <div className="flex-1 bg-slate-50/80 rounded-[1.4rem] md:rounded-[2rem] flex items-center px-4 md:px-6 py-2.5 md:py-3 border border-slate-100 transition-all focus-within:bg-white focus-within:ring-2 focus-within:ring-slate-100">
+           <div className="flex flex-col pr-4 md:pr-6 border-r border-slate-200 shrink-0">
              <span className="text-[7px] md:text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">Fulfillment</span>
-             <span className={`text-[9px] md:text-[11px] font-black uppercase tracking-wider truncate max-w-[70px] md:max-w-[120px] mt-0.5 ${locationName ? 'text-blue-600' : 'text-slate-900'}`}>
+             <span className={`text-[9px] md:text-[11px] font-black uppercase tracking-wider truncate max-w-[65px] md:max-w-[140px] mt-0.5 ${locationName ? 'text-blue-600' : 'text-slate-900'}`}>
                {locationName || (zipCode.length === 6 ? 'Resolving...' : 'Hub Pincode')}
              </span>
            </div>
@@ -376,7 +376,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
              value={zipCode}
              onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
              placeholder="6-digit PIN"
-             className="bg-transparent border-none focus:ring-0 text-slate-950 font-black text-lg md:text-2xl placeholder:text-slate-300 w-full pl-5 outline-none caret-blue-500"
+             className="bg-transparent border-none focus:ring-0 text-slate-950 font-black text-lg md:text-2xl placeholder:text-slate-300 w-full pl-4 md:pl-6 outline-none caret-blue-500"
            />
         </div>
 
@@ -384,7 +384,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         <button
           onClick={onContinue}
           disabled={selectedIds.size === 0 || loading || zipCode.length < 6}
-          className={`px-8 md:px-12 py-5 md:py-6 rounded-[1.5rem] md:rounded-[2.2rem] font-black text-[10px] md:text-[12px] flex items-center justify-center gap-3 transition-all active:scale-[0.98] uppercase tracking-[0.25em]
+          className={`px-6 md:px-12 py-4 md:py-6 rounded-[1.4rem] md:rounded-[2.2rem] font-black text-[10px] md:text-[12px] flex items-center justify-center gap-3 transition-all active:scale-[0.98] uppercase tracking-[0.25em]
             ${(selectedIds.size === 0 || loading || zipCode.length < 6)
               ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
               : 'bg-slate-950 text-white hover:bg-[#457B9D] shadow-xl'}
