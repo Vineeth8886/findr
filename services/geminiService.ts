@@ -23,10 +23,17 @@ const parseRobustJson = (text: string) => {
   }
 };
 
-const handleQuotaError = (e: any) => {
-  if (e.message?.includes('429') || e.status === 429 || e.message?.toLowerCase().includes('quota')) {
+const handleApiError = (e: any) => {
+  const msg = e.message?.toLowerCase() || "";
+  
+  if (e.status === 400 || msg.includes('400') || msg.includes('invalid') || msg.includes('api key not valid')) {
+    throw new Error("INVALID_KEY");
+  }
+  
+  if (e.status === 429 || msg.includes('429') || msg.includes('quota')) {
     throw new Error("QUOTA_EXCEEDED");
   }
+  
   throw e;
 };
 
@@ -79,7 +86,7 @@ export const identifyProducts = async (base64Image: string): Promise<ProductCand
     return parseRobustJson(response.text || '[]');
   } catch (e: any) {
     console.error("Identification Error:", e);
-    return handleQuotaError(e);
+    return handleApiError(e);
   }
 };
 
@@ -97,7 +104,6 @@ export const fetchVendorsForProduct = async (
   `;
 
   try {
-    // Switched to Flash for better quota limits while keeping Search Grounding
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -153,16 +159,7 @@ export const fetchVendorsForProduct = async (
     };
   } catch (e: any) {
     console.error("Sourcing Error:", e);
-    if (e.message?.includes('429') || e.message?.toLowerCase().includes('quota')) {
-       return handleQuotaError(e);
-    }
-    return {
-      productName: product.name,
-      tier: product.tier,
-      researchNote: "Automated verification encountered a catalog wall. Manual outreach recommended.",
-      vendors: [],
-      groundingSources: []
-    };
+    return handleApiError(e);
   }
 };
 

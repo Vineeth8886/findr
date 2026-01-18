@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isQuotaError, setIsQuotaError] = useState(false);
+  const [isKeyError, setIsKeyError] = useState(false);
 
   const [history, setHistory] = useState<ProductResult[][]>(() => {
     const saved = localStorage.getItem('findr_history');
@@ -43,7 +44,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      if (process.env.API_KEY) {
+      // Prioritize checking if environment key is valid or aistudio session is active
+      if (process.env.API_KEY && process.env.API_KEY !== '') {
         setState('upload');
       } else if (window.aistudio) {
         const hasKey = await window.aistudio.hasSelectedApiKey();
@@ -57,6 +59,8 @@ const App: React.FC = () => {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
       setState('upload');
+      setError(null);
+      setIsKeyError(false);
     }
   };
 
@@ -108,6 +112,7 @@ const App: React.FC = () => {
     setProgress(0);
     setError(null);
     setIsQuotaError(false);
+    setIsKeyError(false);
     setState('analyzing');
     try {
       const identified = await identifyProducts(img);
@@ -118,13 +123,18 @@ const App: React.FC = () => {
         setLoading(false);
       }, 1000);
     } catch (err: any) {
-      if (err.message === 'QUOTA_EXCEEDED') {
+      if (err.message === 'INVALID_KEY') {
+        setIsKeyError(true);
+        setError("Invalid API Key. Please re-connect with a valid paid project key.");
+        setState('setup');
+      } else if (err.message === 'QUOTA_EXCEEDED') {
         setIsQuotaError(true);
         setError("AI Capacity Reached. Switch to Manual Search.");
+        setState('upload');
       } else {
-        setError(`Neural Scan Failed: ${err.message || "Invalid response format"}`);
+        setError(`Neural Scan Failed: ${err.message || "Network Error"}`);
+        setState('upload');
       }
-      setState('upload');
       setLoading(false);
     }
   };
@@ -151,6 +161,7 @@ const App: React.FC = () => {
     setLoading(true);
     setError(null);
     setIsQuotaError(false);
+    setIsKeyError(false);
     setState('sourcing');
     setProgress(5);
     try {
@@ -165,13 +176,18 @@ const App: React.FC = () => {
         setLoading(false);
       }, 1000);
     } catch (err: any) {
-      if (err.message === 'QUOTA_EXCEEDED') {
+      if (err.message === 'INVALID_KEY') {
+        setIsKeyError(true);
+        setError("Your API Key is invalid or expired. Re-authentication required.");
+        setState('setup');
+      } else if (err.message === 'QUOTA_EXCEEDED') {
         setIsQuotaError(true);
         setError("Search Quota Reached. Use the Manual Search Bridge below.");
+        setState('selecting');
       } else {
         setError(`Search Error: ${err.message || "Network failure"}`);
+        setState('selecting');
       }
-      setState('selecting');
       setLoading(false);
     }
   };
@@ -184,12 +200,17 @@ const App: React.FC = () => {
     setResults([]);
     setError(null);
     setIsQuotaError(false);
+    setIsKeyError(false);
     setProgress(0);
     setActiveView('search');
   };
 
   const handleManualSearchFallback = () => {
     const selectedProducts = candidates.filter(c => selectedIds.has(c.id));
+    if (selectedProducts.length === 0) {
+      window.open(`https://www.google.com/search?q=B2B+vendors+dealers+India+${zipCode}`, '_blank');
+      return;
+    }
     selectedProducts.forEach(p => {
       const query = `${p.name} B2B vendors dealers India ${zipCode}`;
       window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
@@ -207,7 +228,7 @@ const App: React.FC = () => {
     <div className="min-h-screen pb-12">
       <Header onViewChange={setActiveView} onHomeClick={handleHomeClick} activeView={activeView} />
       
-      {/* Global Error Banner / Quota Bridge */}
+      {/* Global Error Banner / Bridge */}
       {error && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-lg bg-red-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex flex-col gap-4 animate-in slide-in-from-top-4">
           <div className="flex items-center justify-between">
@@ -215,17 +236,27 @@ const App: React.FC = () => {
               <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
               <span className="text-xs font-black uppercase tracking-widest">{error}</span>
             </div>
-            <button onClick={() => { setError(null); setIsQuotaError(false); }} className="p-2 hover:bg-white/10 rounded-full">
+            <button onClick={() => { setError(null); setIsQuotaError(false); setIsKeyError(false); }} className="p-2 hover:bg-white/10 rounded-full">
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
           </div>
-          {isQuotaError && (
-            <button 
-              onClick={handleManualSearchFallback}
-              className="w-full py-3 bg-white text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-lg"
-            >
-              Open Manual Search Bridge
-            </button>
+          {(isQuotaError || isKeyError) && (
+            <div className="flex gap-2">
+              <button 
+                onClick={handleManualSearchFallback}
+                className="flex-1 py-3 bg-white text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-lg"
+              >
+                Manual Search Bridge
+              </button>
+              {isKeyError && (
+                 <button 
+                  onClick={handleConnect}
+                  className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg"
+                >
+                  Change API Key
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -239,9 +270,10 @@ const App: React.FC = () => {
                    <span className="text-4xl font-black">F</span>
                    <div className="absolute bottom-3 right-3 w-3 h-3 bg-white rounded-full shadow-sm" />
                 </div>
-                <div>
-                  <h2 className="text-4xl font-black text-slate-900 tracking-tighter">Initialize Findr.</h2>
-                  <p className="text-slate-500 mt-2 max-w-sm mx-auto font-medium">To enable multi-device visual procurement, connect your Gemini API key.</p>
+                <div className="space-y-4">
+                  <h2 className="text-4xl font-black text-slate-900 tracking-tighter">Authentication Required</h2>
+                  <p className="text-slate-500 max-w-sm mx-auto font-medium">Please connect a valid Gemini API key from a paid GCP project to enable high-volume visual procurement.</p>
+                  <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[10px] font-bold text-blue-500 uppercase tracking-widest hover:underline">View Billing Docs</a>
                 </div>
                 <button 
                   onClick={handleConnect}
@@ -318,12 +350,14 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* ... network and history views ... */}
         {activeView === 'vendors' && (
           <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in">
              <div className="text-center space-y-3">
                <h2 className="text-5xl font-black text-slate-900 tracking-tight">Supply Network</h2>
                <p className="text-slate-500 font-medium text-lg">Verified B2B distribution nodes across India.</p>
              </div>
+             {/* Simple dummy list for network */}
              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {[
                   { name: 'Kohler India', category: 'Fittings', score: 5, color: 'bg-[#E3F2FD]/50' },
@@ -340,9 +374,6 @@ const App: React.FC = () => {
                         <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-slate-900 shadow-sm">
                            <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                         </div>
-                     </div>
-                     <div className="flex gap-1.5">
-                        {[1,2,3,4,5].map(s => <div key={s} className={`w-4 h-2 rounded-full ${s <= v.score ? 'bg-slate-900' : 'bg-slate-200'}`} />)}
                      </div>
                   </div>
                 ))}
@@ -365,11 +396,8 @@ const App: React.FC = () => {
                           </div>
                           <div>
                             <h4 className="text-xl font-black text-slate-900 tracking-tight">{h[0]?.productName || 'Unnamed Scan'}</h4>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Archived Oct 2024</p>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Archived {new Date().toLocaleDateString()}</p>
                           </div>
-                       </div>
-                       <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-lg group-hover:translate-x-2 transition-all">
-                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                        </div>
                     </div>
                   ))}
