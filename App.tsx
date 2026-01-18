@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import FileUpload from './components/FileUpload';
@@ -8,15 +7,12 @@ import ThinkingVisual from './components/ThinkingVisual';
 import { identifyProducts, fetchVendorsForProduct, resolvePincode } from './services/geminiService';
 import { ProductCandidate, ProductResult, ProductTier } from './types';
 
-// Use AIStudio interface and re-declare it in the global scope to match the environment's expectations.
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
-
   interface Window {
-    // Fixed: Changed to optional to match the environmental declaration and avoid "identical modifiers" error.
     aistudio?: AIStudio;
   }
 }
@@ -58,7 +54,6 @@ const App: React.FC = () => {
 
   const handleConnect = async () => {
     if (window.aistudio) {
-      // Mitigate race condition by assuming key selection was successful.
       await window.aistudio.openSelectKey();
       setState('upload');
     }
@@ -110,7 +105,7 @@ const App: React.FC = () => {
         setLoading(false);
       }, 800);
     } catch (err: any) {
-      setError('Neural scan unsuccessful. Please clarify the source image.');
+      setError(`Neural Scan Failed: ${err.message || "Invalid response format"}`);
       setState('upload');
       setLoading(false);
     }
@@ -151,7 +146,7 @@ const App: React.FC = () => {
         setLoading(false);
       }, 500);
     } catch (err: any) {
-      setError('Search Pipeline Error. Re-routing through secondary nodes.');
+      setError(`Search Error: ${err.message || "Network failure"}`);
       setState('selecting');
       setLoading(false);
     }
@@ -174,6 +169,19 @@ const App: React.FC = () => {
     <div className="min-h-screen pb-12">
       <Header onViewChange={setActiveView} activeView={activeView} />
       
+      {/* Global Error Banner */}
+      {error && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-lg bg-red-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center justify-between animate-in slide-in-from-top-4">
+          <div className="flex items-center gap-3">
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+            <span className="text-xs font-black uppercase tracking-widest">{error}</span>
+          </div>
+          <button onClick={() => setError(null)} className="p-2 hover:bg-white/10 rounded-full">
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      )}
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 md:pt-36">
         {activeView === 'search' && (
           <div className="max-w-6xl mx-auto">
@@ -193,9 +201,6 @@ const App: React.FC = () => {
                 >
                   Connect to Gemini
                 </button>
-                <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[10px] text-slate-400 font-bold uppercase tracking-widest hover:underline">
-                  Gemini API Documentation & Billing
-                </a>
               </div>
             )}
 
@@ -265,7 +270,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Network & Archives views maintained with Findr. styling */}
         {activeView === 'vendors' && (
           <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in">
              <div className="text-center space-y-3">

@@ -1,9 +1,34 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { ProductCandidate, ProductResult, VendorOption, GroundingLink, ProductTier } from "../types";
 
-// Always use new GoogleGenAI({ apiKey: process.env.API_KEY }) right before making an API call to ensure it always uses the most up-to-date API key.
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+
+/**
+ * Robustly extracts and parses JSON from a string that might contain markdown blocks.
+ */
+const parseRobustJson = (text: string) => {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0].replace(/\[\d+\]/g, ''));
+      } catch (innerError) {
+        console.error("Failed to parse extracted JSON block:", innerError);
+        throw new Error("Neural response format was corrupted.");
+      }
+    }
+    throw new Error("No valid identification data found in response.");
+  }
+};
+
+const handleQuotaError = (e: any) => {
+  if (e.message?.includes('429') || e.status === 429) {
+    throw new Error("API Quota Reached. Please use a paid API key for high-volume procurement.");
+  }
+  throw e;
+};
 
 export const identifyProducts = async (base64Image: string): Promise<ProductCandidate[]> => {
   const ai = getAI();
@@ -16,13 +41,12 @@ export const identifyProducts = async (base64Image: string): Promise<ProductCand
     2. CARPETS: Decorative area rugs, wall-to-wall carpeting, or floor mats.
     3. WALL FINISHES: Paneling, stone cladding, wallpaper, or specific paint textures.
     
-    Ensure architectural finishes get distinct bounding boxes representing clear sections of the material.
-    Return results in JSON format with normalized bounding boxes [ymin, xmin, ymax, xmax] (0-1000).
+    Return results strictly in JSON format with normalized bounding boxes [ymin, xmin, ymax, xmax] (0-1000).
   `;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-flash-preview', // Switched to Flash to preserve your quota
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
@@ -52,10 +76,10 @@ export const identifyProducts = async (base64Image: string): Promise<ProductCand
       }
     });
 
-    return JSON.parse(response.text || '[]');
-  } catch (e) {
+    return parseRobustJson(response.text || '[]');
+  } catch (e: any) {
     console.error("Identification Error:", e);
-    throw new Error("Could not segment the scene. Please clarify the target objects.");
+    return handleQuotaError(e);
   }
 };
 
@@ -67,19 +91,14 @@ export const fetchVendorsForProduct = async (
   const prompt = `
     TASK: Find 3-5 real vendors in India for: "${product.name}".
     CONTEXT: ${product.description}. 
-    LOCATION: Pincode ${zipCode} (calculate shipping lead times).
-    
-    SEARCH STRATEGY:
-    1. Search for authorized distributors, wholesale suppliers, and specialized D2C brands.
-    2. Prioritize vendors like Kohler India, Jaquar, Pepperfry, IKEA India, or niche B2B suppliers.
-    3. If exact model isn't found, find the closest high-integrity alternative matching the spec.
+    LOCATION: Pincode ${zipCode}.
     
     RETURN: JSON with a list of vendors. Include 'researchNote' explaining the availability landscape.
   `;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-pro-preview', // Keep Pro for sourcing as it uses Search Grounding better
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -114,12 +133,8 @@ export const fetchVendorsForProduct = async (
       }
     });
 
-    // Clean citations like [1], [2] from the response text as they can break JSON.parse 
-    // when using search grounding tools.
-    const cleanJson = (response.text || '{"vendors": [], "researchNote": "No matches found."}').replace(/\[\d+\]/g, '');
-    const parsed = JSON.parse(cleanJson);
+    const parsed = parseRobustJson(response.text || '{}');
     
-    // Extract grounding sources if available
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources: GroundingLink[] = groundingChunks
       .filter((chunk: any) => chunk.web)
@@ -137,13 +152,11 @@ export const fetchVendorsForProduct = async (
     };
   } catch (e: any) {
     console.error("Sourcing Error:", e);
-    // Handle "Requested entity was not found" error by indicating key issues if necessary
+    if (e.message?.includes('429')) return handleQuotaError(e);
     return {
       productName: product.name,
       tier: product.tier,
-      researchNote: e.message?.includes('not found') 
-        ? "API access denied. Please re-connect your key." 
-        : "Automated verification encountered a catalog wall. Manual outreach recommended.",
+      researchNote: "Automated verification encountered a catalog wall. Manual outreach recommended.",
       vendors: [],
       groundingSources: []
     };
@@ -152,9 +165,13 @@ export const fetchVendorsForProduct = async (
 
 export const resolvePincode = async (pincode: string): Promise<string> => {
   const ai = getAI();
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Resolve Indian Pincode ${pincode} to "City, State". Return only that string.`
-  });
-  return response.text?.trim() || "Regional Hub";
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Resolve Indian Pincode ${pincode} to "City, State". Return only that string.`
+    });
+    return response.text?.trim() || "Regional Hub";
+  } catch (e) {
+    return "Regional Hub";
+  }
 };
