@@ -1,11 +1,14 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { ProductCandidate, ProductResult, VendorOption, GroundingLink, ProductTier } from "../types";
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+const getAI = () => {
+  const key = process.env.API_KEY;
+  if (!key || key.trim() === "") {
+    throw new Error("INVALID_KEY");
+  }
+  return new GoogleGenAI({ apiKey: key });
+};
 
-/**
- * Robustly extracts and parses JSON from a string that might contain markdown blocks.
- */
 const parseRobustJson = (text: string) => {
   try {
     return JSON.parse(text);
@@ -26,7 +29,7 @@ const parseRobustJson = (text: string) => {
 const handleApiError = (e: any) => {
   const msg = e.message?.toLowerCase() || "";
   
-  if (e.status === 400 || msg.includes('400') || msg.includes('invalid') || msg.includes('api key not valid')) {
+  if (e.message === "INVALID_KEY" || e.status === 400 || msg.includes('400') || msg.includes('invalid') || msg.includes('api key not valid') || msg.includes('must be set')) {
     throw new Error("INVALID_KEY");
   }
   
@@ -38,20 +41,14 @@ const handleApiError = (e: any) => {
 };
 
 export const identifyProducts = async (base64Image: string): Promise<ProductCandidate[]> => {
-  const ai = getAI();
-  const prompt = `
-    Analyze the image as a professional architectural and procurement engineer. 
-    TASK: Identify specific furniture, lighting, and industrial parts.
-    
-    CRITICAL: Segment and identify the following structural and surface assets separately:
-    1. FLOORING: Hard surfaces like Marble, Hardwood, Concrete, or Ceramic tiles.
-    2. CARPETS: Decorative area rugs, wall-to-wall carpeting, or floor mats.
-    3. WALL FINISHES: Paneling, stone cladding, wallpaper, or specific paint textures.
-    
-    Return results strictly in JSON format with normalized bounding boxes [ymin, xmin, ymax, xmax] (0-1000).
-  `;
-
   try {
+    const ai = getAI();
+    const prompt = `
+      Analyze the image as a professional architectural and procurement engineer. 
+      TASK: Identify specific furniture, lighting, and industrial parts.
+      Return results strictly in JSON format with normalized bounding boxes [ymin, xmin, ymax, xmax] (0-1000).
+    `;
+
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
@@ -94,16 +91,22 @@ export const fetchVendorsForProduct = async (
   product: ProductCandidate,
   zipCode: string
 ): Promise<ProductResult> => {
-  const ai = getAI();
-  const prompt = `
-    TASK: Find 3-5 real B2B vendors or professional dealers in India for: "${product.name}".
-    CONTEXT: ${product.description}. 
-    LOCATION: Pincode ${zipCode}.
-    
-    RETURN: JSON with a list of vendors. Include 'researchNote' explaining the availability landscape.
-  `;
-
   try {
+    const ai = getAI();
+    // HARDENED B2B PROMPT: Explicitly instructs model to bypass retail marketplaces.
+    const prompt = `
+      TASK: Locate 3-5 high-level B2B industrial vendors or authorized professional dealers in India for: "${product.name}".
+      
+      STRICT CONSTRAINTS:
+      1. DO NOT return results from general consumer retail sites like Amazon, Flipkart, Myntra, or Pepperfry.
+      2. ONLY focus on authorized distributors, wholesale industrial hubs, or direct manufacturer sales channels.
+      3. SEARCH focus keywords: "B2B authorized dealer", "Industrial wholesale distributor", "GST Registered dealer", "Project procurement price".
+      
+      CONTEXT: ${product.description}. 
+      LOCATION: Proximity to Pincode ${zipCode}.
+      RETURN: JSON format. Include 'researchNote' detailing the industrial availability and why consumer marketplaces were bypassed.
+    `;
+
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -124,12 +127,7 @@ export const fetchVendorsForProduct = async (
                   numericPrice: { type: Type.NUMBER },
                   unit: { type: Type.STRING },
                   availability: { type: Type.STRING },
-                  deliveryDate: { type: Type.STRING },
-                  daysToDelivery: { type: Type.NUMBER },
-                  url: { type: Type.STRING },
-                  productImage: { type: Type.STRING },
-                  address: { type: Type.STRING },
-                  reliabilityScore: { type: Type.NUMBER }
+                  url: { type: Type.STRING }
                 },
                 required: ['vendor', 'price', 'numericPrice', 'url', 'unit']
               }
@@ -141,7 +139,6 @@ export const fetchVendorsForProduct = async (
     });
 
     const parsed = parseRobustJson(response.text || '{}');
-    
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources: GroundingLink[] = groundingChunks
       .filter((chunk: any) => chunk.web)
@@ -153,7 +150,7 @@ export const fetchVendorsForProduct = async (
     return {
       productName: product.name,
       tier: product.tier,
-      researchNote: parsed.researchNote || "Verification cycle complete.",
+      researchNote: parsed.researchNote || "B2B Verification cycle complete. Retail channels excluded.",
       vendors: parsed.vendors || [],
       groundingSources: sources
     };
@@ -164,8 +161,8 @@ export const fetchVendorsForProduct = async (
 };
 
 export const resolvePincode = async (pincode: string): Promise<string> => {
-  const ai = getAI();
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Resolve Indian Pincode ${pincode} to "City, State". Return only that string.`
