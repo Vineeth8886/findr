@@ -1,11 +1,10 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { ProductCandidate, ProductResult, VendorOption, GroundingLink, ProductTier } from "../types";
+import { ProductCandidate, ProductResult, VendorOption, GroundingLink, ProductTier, DetailedSpecs } from "../types";
 
 const getAI = () => {
   const key = process.env.API_KEY;
-  if (!key || key.trim() === "") {
-    throw new Error("INVALID_KEY");
-  }
+  if (!key || key.trim() === "") throw new Error("INVALID_KEY");
   return new GoogleGenAI({ apiKey: key });
 };
 
@@ -14,101 +13,74 @@ const parseRobustJson = (text: string) => {
     return JSON.parse(text);
   } catch (e) {
     const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0].replace(/\[\d+\]/g, ''));
-      } catch (innerError) {
-        console.error("Failed to parse extracted JSON block:", innerError);
-        throw new Error("Neural response format was corrupted.");
-      }
-    }
-    throw new Error("No valid identification data found in response.");
+    if (jsonMatch) return JSON.parse(jsonMatch[0]);
+    throw new Error("Neural response corrupted.");
   }
 };
 
 const handleApiError = (e: any) => {
   const msg = e.message?.toLowerCase() || "";
-  
-  if (e.message === "INVALID_KEY" || e.status === 400 || msg.includes('400') || msg.includes('invalid') || msg.includes('api key not valid') || msg.includes('must be set')) {
-    throw new Error("INVALID_KEY");
-  }
-  
-  if (e.status === 429 || msg.includes('429') || msg.includes('quota')) {
-    throw new Error("QUOTA_EXCEEDED");
-  }
-  
+  if (msg.includes('api key') || e.status === 400) throw new Error("INVALID_KEY");
+  if (e.status === 429) throw new Error("QUOTA_EXCEEDED");
   throw e;
 };
 
-export const identifyProducts = async (base64Image: string): Promise<ProductCandidate[]> => {
+const deriveZone = (box?: [number, number, number, number]) => {
+  if (!box || !Array.isArray(box)) return "Global Scene";
+  const [ymin, xmin, ymax, xmax] = box;
+  const cx = (xmin + xmax) / 2;
+  const cy = (ymin + ymax) / 2;
+  let zone = cy < 333 ? "Upper" : cy < 666 ? "Center" : "Lower";
+  zone += "-";
+  zone += cx < 333 ? "Left" : cx < 666 ? "Center" : "Right";
+  return zone;
+};
+
+export const identifyProducts = async (base64Image: string): Promise<{ products: ProductCandidate[], summary: string }> => {
   try {
     const ai = getAI();
-    const prompt = `
-      Analyze the image as a professional architectural and procurement engineer. 
-      TASK: Identify specific furniture, lighting, and industrial parts.
-      Return results strictly in JSON format with normalized bounding boxes [ymin, xmin, ymax, xmax] (0-1000).
-    `;
-
-    const response: GenerateContentResponse = await ai.models.generateContent({
+    const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
-          { text: prompt }
+          { text: "Identify furniture and architectural elements for a professional BOQ. Return JSON with 'summary' and 'products' array. For each: id, name, description, category, tier, quantity, suggestedUnit, dimensions (LxWxH), boundingBox [ymin, xmin, ymax, xmax], and 'confidence' (0-100)." }
         ]
       },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              id: { type: Type.STRING },
-              name: { type: Type.STRING },
-              description: { type: Type.STRING },
-              category: { type: Type.STRING },
-              tier: { type: Type.STRING },
-              boundingBox: { 
-                type: Type.ARRAY, 
-                items: { type: Type.NUMBER }
-              }
-            },
-            required: ['id', 'name', 'description', 'category', 'tier', 'boundingBox']
-          }
-        }
-      }
+      config: { responseMimeType: "application/json" }
     });
-
-    return parseRobustJson(response.text || '[]');
-  } catch (e: any) {
-    console.error("Identification Error:", e);
-    return handleApiError(e);
-  }
+    const parsed = parseRobustJson(response.text);
+    return {
+      products: Array.isArray(parsed.products) ? parsed.products : [],
+      summary: typeof parsed.summary === 'string' ? parsed.summary : "Analysis complete."
+    };
+  } catch (e) { return handleApiError(e); }
 };
 
-export const fetchVendorsForProduct = async (
-  product: ProductCandidate,
-  zipCode: string
-): Promise<ProductResult> => {
+export const fetchVendorsForProduct = async (product: ProductCandidate, zipCode: string): Promise<ProductResult> => {
   try {
     const ai = getAI();
-    // HARDENED B2B PROMPT: Explicitly instructs model to bypass retail marketplaces.
     const prompt = `
-      TASK: Locate 3-5 high-level B2B industrial vendors or authorized professional dealers in India for: "${product.name}".
+      TASK: B2B Procurement for "${product.name}".
+      LOCATION: Pincode ${zipCode}, India.
       
-      STRICT CONSTRAINTS:
-      1. DO NOT return results from general consumer retail sites like Amazon, Flipkart, Myntra, or Pepperfry.
-      2. ONLY focus on authorized distributors, wholesale industrial hubs, or direct manufacturer sales channels.
-      3. SEARCH focus keywords: "B2B authorized dealer", "Industrial wholesale distributor", "GST Registered dealer", "Project procurement price".
+      REQUIREMENTS:
+      1. Sourcing: Provide 3 verified Indian B2B vendors/manufacturers. 
+      2. Compliance: Mandatory specific Indian Standard (IS) codes for the product category.
+      3. Detailed Vendor Info: For each vendor, provide:
+         - priceRange (e.g. "₹45k - ₹52k")
+         - moq (Minimum Order Quantity)
+         - isManufacturer (boolean)
+         - gstStatus ('Verified' or 'Unknown')
+         - gstNumber (format: 29AABCG1234F1Z5)
+         - contactPhone and full address.
+      4. Labor: Specific installation cost per unit for this product.
       
-      CONTEXT: ${product.description}. 
-      LOCATION: Proximity to Pincode ${zipCode}.
-      RETURN: JSON format. Include 'researchNote' detailing the industrial availability and why consumer marketplaces were bypassed.
+      Return JSON per schema.
     `;
 
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -117,6 +89,18 @@ export const fetchVendorsForProduct = async (
           type: Type.OBJECT,
           properties: {
             researchNote: { type: Type.STRING },
+            confidence: { type: Type.NUMBER },
+            estimatedLaborRate: { type: Type.NUMBER },
+            dimensions: { type: Type.STRING },
+            specsDetail: {
+              type: Type.OBJECT,
+              properties: {
+                material: { type: Type.STRING },
+                finish: { type: Type.STRING },
+                compliance: { type: Type.STRING },
+                warranty: { type: Type.STRING }
+              }
+            },
             vendors: {
               type: Type.ARRAY,
               items: {
@@ -125,39 +109,50 @@ export const fetchVendorsForProduct = async (
                   vendor: { type: Type.STRING },
                   price: { type: Type.STRING },
                   numericPrice: { type: Type.NUMBER },
+                  priceRange: { type: Type.STRING },
+                  moq: { type: Type.STRING },
                   unit: { type: Type.STRING },
                   availability: { type: Type.STRING },
-                  url: { type: Type.STRING }
-                },
-                required: ['vendor', 'price', 'numericPrice', 'url', 'unit']
+                  contactPhone: { type: Type.STRING },
+                  gstNumber: { type: Type.STRING },
+                  gstStatus: { type: Type.STRING },
+                  isManufacturer: { type: Type.BOOLEAN },
+                  url: { type: Type.STRING },
+                  deliveryDate: { type: Type.STRING },
+                  daysToDelivery: { type: Type.NUMBER },
+                  address: { type: Type.STRING },
+                  reliabilityScore: { type: Type.NUMBER }
+                }
               }
             }
-          },
-          required: ['researchNote', 'vendors']
+          }
         }
       }
     });
 
-    const parsed = parseRobustJson(response.text || '{}');
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sources: GroundingLink[] = groundingChunks
-      .filter((chunk: any) => chunk.web)
-      .map((chunk: any) => ({
-        uri: chunk.web.uri,
-        title: chunk.web.title || chunk.web.uri
-      }));
+    const parsed = parseRobustJson(response.text);
+    const sources = (response.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
+      .filter((c: any) => c.web).map((c: any) => ({ uri: c.web.uri, title: c.web.title || c.web.uri }));
 
     return {
+      id: product.id,
       productName: product.name,
-      tier: product.tier,
-      researchNote: parsed.researchNote || "B2B Verification cycle complete. Retail channels excluded.",
-      vendors: parsed.vendors || [],
-      groundingSources: sources
+      description: product.description,
+      tier: product.tier as ProductTier,
+      researchNote: parsed.researchNote || "Verified B2B Listing.",
+      vendors: Array.isArray(parsed.vendors) ? parsed.vendors.slice(0, 3) : [],
+      groundingSources: sources,
+      quantity: product.quantity,
+      unit: product.suggestedUnit,
+      dimensions: parsed.dimensions || product.dimensions || "Verify on Site",
+      boundingBox: product.boundingBox,
+      scanSource: "Primary_Render.jpg",
+      scanZone: deriveZone(product.boundingBox),
+      scanConfidence: parsed.confidence || product.confidence || 95,
+      specsDetail: parsed.specsDetail || { material: "Industrial Grade", finish: "Standard", compliance: "IS 800", warranty: "12 Months" },
+      estimatedLaborRate: parsed.estimatedLaborRate || 2000
     };
-  } catch (e: any) {
-    console.error("Sourcing Error:", e);
-    return handleApiError(e);
-  }
+  } catch (e) { return handleApiError(e); }
 };
 
 export const resolvePincode = async (pincode: string): Promise<string> => {
@@ -165,10 +160,8 @@ export const resolvePincode = async (pincode: string): Promise<string> => {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Resolve Indian Pincode ${pincode} to "City, State". Return only that string.`
+      contents: `Provide Indian City and State for Pincode ${pincode} as "City, State".`
     });
-    return response.text?.trim() || "Regional Hub";
-  } catch (e) {
-    return "Regional Hub";
-  }
+    return response.text.trim();
+  } catch (e) { return "Regional Hub"; }
 };

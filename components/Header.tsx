@@ -1,15 +1,18 @@
+
 import React from 'react';
 
 interface HeaderProps {
   onViewChange: (view: 'search' | 'vendors' | 'history') => void;
   onHomeClick: () => void;
   activeView: string;
+  isDevMode: boolean;
+  onDevModeToggle: (val: boolean) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onViewChange, onHomeClick, activeView }) => {
+const Header: React.FC<HeaderProps> = ({ onViewChange, onHomeClick, activeView, isDevMode, onDevModeToggle }) => {
   return (
     <header className="fixed top-0 left-0 w-full z-50 pointer-events-none">
-      {/* Full-width Glass Bar: Ensures content scrolls cleanly behind the header */}
+      {/* Full-width Glass Bar */}
       <div className="absolute inset-0 bg-white/60 backdrop-blur-2xl border-b border-white/40 shadow-sm" />
       
       <div className="relative max-w-7xl mx-auto py-3 md:py-5 px-4 md:px-8 flex justify-between items-center pointer-events-auto gap-3">
@@ -28,24 +31,36 @@ const Header: React.FC<HeaderProps> = ({ onViewChange, onHomeClick, activeView }
           </h1>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex items-center gap-1 md:gap-2 bg-white/90 p-1 md:p-1.5 rounded-full border border-white/80 shadow-sm">
-          {[
-            { id: 'search', label: 'Explore' },
-            { id: 'vendors', label: 'Network' },
-            { id: 'history', label: 'Archives' }
-          ].map(link => (
+        {/* Navigation & Dev Toggle */}
+        <div className="flex items-center gap-4">
+          <div className="hidden lg:flex items-center gap-3 mr-2">
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dev Mode</span>
             <button 
-              key={link.id}
-              onClick={() => onViewChange(link.id as any)}
-              className={`px-3 md:px-6 py-1.5 md:py-2.5 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap
-                ${activeView === link.id ? 'bg-slate-950 text-white shadow-lg' : 'text-slate-500 hover:text-slate-950'}
-              `}
+              onClick={() => onDevModeToggle(!isDevMode)}
+              className={`w-10 h-5 rounded-full transition-all relative ${isDevMode ? 'bg-blue-600' : 'bg-slate-200'}`}
             >
-              {link.label}
+              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${isDevMode ? 'left-6' : 'left-1'}`} />
             </button>
-          ))}
-        </nav>
+          </div>
+
+          <nav className="flex items-center gap-1 md:gap-2 bg-white/90 p-1 md:p-1.5 rounded-full border border-white/80 shadow-sm">
+            {[
+              { id: 'search', label: 'Explore' },
+              { id: 'vendors', label: 'Network' },
+              { id: 'history', label: 'Archives' }
+            ].map(link => (
+              <button 
+                key={link.id}
+                onClick={() => onViewChange(link.id as any)}
+                className={`px-3 md:px-6 py-1.5 md:py-2.5 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap
+                  ${activeView === link.id ? 'bg-slate-950 text-white shadow-lg' : 'text-slate-500 hover:text-slate-950'}
+                `}
+              >
+                {link.label}
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
     </header>
   );

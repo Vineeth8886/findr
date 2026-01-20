@@ -7,26 +7,40 @@ export interface ProductCandidate {
   description: string;
   category: 'Industrial' | 'Commercial' | 'Architectural' | 'Generic';
   tier: ProductTier;
-  suggestedUnit?: string;
-  boundingBox?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-1000
+  quantity: number;
+  suggestedUnit: string;
+  dimensions?: string; 
+  boundingBox?: [number, number, number, number];
+  confidence?: number;
+  isConfirmed?: boolean;
+}
+
+export interface DetailedSpecs {
+  material: string;
+  finish: string;
+  brandPreference?: string;
+  compliance: string; // IS Codes
+  warranty: string;   // Warranty terms
 }
 
 export interface VendorOption {
   vendor: string;
   price: string;
   numericPrice: number;
+  priceRange?: string; // e.g. "₹12k - ₹15k"
+  moq?: string; // Minimum Order Quantity
   unit: string;
-  quantityAvailable: string;
-  availability: 'In Stock' | 'Backordered' | 'Limited Stock';
+  availability: string;
+  url: string;
   deliveryDate: string;
   daysToDelivery: number;
-  url: string;
-  productImage?: string;
+  address: string;
   reliabilityScore: number;
-  address?: string;
-  contactPhone?: string;
   contactEmail?: string;
-  gstAvailable?: boolean;
+  contactPhone?: string;
+  gstNumber?: string;
+  gstStatus?: 'Verified' | 'Pending' | 'Unknown';
+  isManufacturer?: boolean;
 }
 
 export interface GroundingLink {
@@ -35,13 +49,25 @@ export interface GroundingLink {
 }
 
 export interface ProductResult {
+  id: string;
   productName: string;
+  description: string;
   tier: ProductTier;
   researchNote: string; 
   vendors: VendorOption[];
   groundingSources: GroundingLink[];
+  quantity: number;
+  unit: string;
+  dimensions: string;
+  boundingBox?: [number, number, number, number];
+  scanSource: string;
+  scanZone: string;
+  scanConfidence: number;
+  specsDetail: DetailedSpecs;
+  estimatedLaborRate: number;
+  thumbnail?: string; 
 }
 
 export type SortField = 'price' | 'delivery';
 export type SortOrder = 'asc' | 'desc';
-export type ViewMode = 'grid' | 'list';
+export type ViewMode = 'grid' | 'list' | 'boq';
