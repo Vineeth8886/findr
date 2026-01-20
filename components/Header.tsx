@@ -11,11 +11,11 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onViewChange, onHomeClick, activeView, isDevMode, onDevModeToggle }) => {
   return (
-    <header className="fixed top-0 left-0 w-full z-50 pointer-events-none">
+    <header className="fixed top-0 left-0 w-full z-50">
       {/* Full-width Glass Bar */}
-      <div className="absolute inset-0 bg-white/60 backdrop-blur-2xl border-b border-white/40 shadow-sm" />
+      <div className="absolute inset-0 bg-white/60 backdrop-blur-2xl border-b border-white/40 shadow-sm pointer-events-none" />
       
-      <div className="relative max-w-7xl mx-auto py-3 md:py-5 px-4 md:px-8 flex justify-between items-center pointer-events-auto gap-3">
+      <div className="relative max-w-7xl mx-auto py-3 md:py-5 px-4 md:px-8 flex justify-between items-center gap-3">
         {/* Brand Identity */}
         <div 
           onClick={onHomeClick}
@@ -33,13 +33,14 @@ const Header: React.FC<HeaderProps> = ({ onViewChange, onHomeClick, activeView, 
 
         {/* Navigation & Dev Toggle */}
         <div className="flex items-center gap-4">
-          <div className="hidden lg:flex items-center gap-3 mr-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dev Mode</span>
+          <div className="flex items-center gap-3 mr-2">
+            <span className="hidden sm:inline text-[9px] font-black uppercase tracking-widest text-slate-400">Dev Mode</span>
             <button 
               onClick={() => onDevModeToggle(!isDevMode)}
-              className={`w-10 h-5 rounded-full transition-all relative ${isDevMode ? 'bg-blue-600' : 'bg-slate-200'}`}
+              className={`w-10 h-5 rounded-full transition-all relative border border-transparent shadow-inner ${isDevMode ? 'bg-blue-600 ring-2 ring-blue-500/20' : 'bg-slate-200'}`}
+              aria-label="Toggle Developer Mode"
             >
-              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${isDevMode ? 'left-6' : 'left-1'}`} />
+              <div className={`absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full transition-all shadow-sm ${isDevMode ? 'left-[22px]' : 'left-0.5'}`} />
             </button>
           </div>
 

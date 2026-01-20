@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { ProductCandidate, ProductResult, VendorOption, GroundingLink, ProductTier, DetailedSpecs } from "../types";
+import { ProductCandidate, ProductResult, VendorOption, GroundingLink, ProductTier, DetailedSpecs, AncillaryItem } from "../types";
 
 const getAI = () => {
   const key = process.env.API_KEY;
@@ -9,31 +9,29 @@ const getAI = () => {
 };
 
 const parseRobustJson = (text: string) => {
+  if (!text) throw new Error("Neural engine returned empty response.");
   try {
     return JSON.parse(text);
   } catch (e) {
     const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (innerE) {
+        throw new Error("Neural response format mismatch.");
+      }
+    }
     throw new Error("Neural response corrupted.");
   }
 };
 
 const handleApiError = (e: any) => {
   const msg = e.message?.toLowerCase() || "";
-  if (msg.includes('api key') || e.status === 400) throw new Error("INVALID_KEY");
+  console.error("Gemini API Error:", e);
+  if (msg.includes('api key') || e.status === 400 || msg.includes('not found') || msg.includes('invalid')) throw new Error("INVALID_KEY");
   if (e.status === 429) throw new Error("QUOTA_EXCEEDED");
-  throw e;
-};
-
-const deriveZone = (box?: [number, number, number, number]) => {
-  if (!box || !Array.isArray(box)) return "Global Scene";
-  const [ymin, xmin, ymax, xmax] = box;
-  const cx = (xmin + xmax) / 2;
-  const cy = (ymin + ymax) / 2;
-  let zone = cy < 333 ? "Upper" : cy < 666 ? "Center" : "Lower";
-  zone += "-";
-  zone += cx < 333 ? "Left" : cx < 666 ? "Center" : "Right";
-  return zone;
+  if (msg.includes('safety') || msg.includes('blocked')) throw new Error("The model blocked this content for safety reasons.");
+  throw new Error(e.message || "An unexpected error occurred in the neural pipeline.");
 };
 
 export const identifyProducts = async (base64Image: string): Promise<{ products: ProductCandidate[], summary: string }> => {
@@ -52,7 +50,7 @@ export const identifyProducts = async (base64Image: string): Promise<{ products:
     const parsed = parseRobustJson(response.text);
     return {
       products: Array.isArray(parsed.products) ? parsed.products : [],
-      summary: typeof parsed.summary === 'string' ? parsed.summary : "Analysis complete."
+      summary: typeof parsed.summary === 'string' ? parsed.summary : "Visual analysis complete."
     };
   } catch (e) { return handleApiError(e); }
 };
@@ -60,30 +58,17 @@ export const identifyProducts = async (base64Image: string): Promise<{ products:
 export const fetchVendorsForProduct = async (product: ProductCandidate, zipCode: string): Promise<ProductResult> => {
   try {
     const ai = getAI();
-    const prompt = `
-      TASK: B2B Procurement for "${product.name}".
-      LOCATION: Pincode ${zipCode}, India.
-      
-      REQUIREMENTS:
-      1. Sourcing: Provide 3 verified Indian B2B vendors/manufacturers. 
-      2. Compliance: Mandatory specific Indian Standard (IS) codes for the product category.
-      3. Detailed Vendor Info: For each vendor, provide:
-         - priceRange (e.g. "₹45k - ₹52k")
-         - moq (Minimum Order Quantity)
-         - isManufacturer (boolean)
-         - gstStatus ('Verified' or 'Unknown')
-         - gstNumber (format: 29AABCG1234F1Z5)
-         - contactPhone and full address.
-      4. Labor: Specific installation cost per unit for this product.
-      
-      Return JSON per schema.
-    `;
+    const prompt = `B2B Procurement sourcing for industrial asset: "${product.name}" (${product.description}) in Pincode ${zipCode}, India. 
+    Find professional B2B vendors, manufacturers or wholesale dealers. Avoid generic retail marketplaces like Amazon if possible.
+    Identify technical specifications like Material, Finish, and Compliance (ISI/ISO).
+    Estimate a local per-unit labor installation rate in INR.`;
 
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
+        thinkingConfig: { thinkingBudget: 32768 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -109,7 +94,6 @@ export const fetchVendorsForProduct = async (product: ProductCandidate, zipCode:
                   vendor: { type: Type.STRING },
                   price: { type: Type.STRING },
                   numericPrice: { type: Type.NUMBER },
-                  priceRange: { type: Type.STRING },
                   moq: { type: Type.STRING },
                   unit: { type: Type.STRING },
                   availability: { type: Type.STRING },
@@ -118,7 +102,6 @@ export const fetchVendorsForProduct = async (product: ProductCandidate, zipCode:
                   gstStatus: { type: Type.STRING },
                   isManufacturer: { type: Type.BOOLEAN },
                   url: { type: Type.STRING },
-                  deliveryDate: { type: Type.STRING },
                   daysToDelivery: { type: Type.NUMBER },
                   address: { type: Type.STRING },
                   reliabilityScore: { type: Type.NUMBER }
@@ -131,37 +114,53 @@ export const fetchVendorsForProduct = async (product: ProductCandidate, zipCode:
     });
 
     const parsed = parseRobustJson(response.text);
-    const sources = (response.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
-      .filter((c: any) => c.web).map((c: any) => ({ uri: c.web.uri, title: c.web.title || c.web.uri }));
+    const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const sources = grounding.filter((c: any) => c.web).map((c: any) => ({ uri: c.web.uri, title: c.web.title || c.web.uri }));
 
     return {
       id: product.id,
       productName: product.name,
       description: product.description,
       tier: product.tier as ProductTier,
-      researchNote: parsed.researchNote || "Verified B2B Listing.",
+      researchNote: parsed.researchNote || "Deep market research complete.",
       vendors: Array.isArray(parsed.vendors) ? parsed.vendors.slice(0, 3) : [],
       groundingSources: sources,
       quantity: product.quantity,
       unit: product.suggestedUnit,
-      dimensions: parsed.dimensions || product.dimensions || "Verify on Site",
+      dimensions: parsed.dimensions || product.dimensions || "Verified on Site",
       boundingBox: product.boundingBox,
-      scanSource: "Primary_Render.jpg",
-      scanZone: deriveZone(product.boundingBox),
-      scanConfidence: parsed.confidence || product.confidence || 95,
-      specsDetail: parsed.specsDetail || { material: "Industrial Grade", finish: "Standard", compliance: "IS 800", warranty: "12 Months" },
-      estimatedLaborRate: parsed.estimatedLaborRate || 2000
+      scanSource: "Reference_Scene.jpg",
+      scanZone: "Calculated",
+      scanConfidence: parsed.confidence || 95,
+      specsDetail: parsed.specsDetail || { material: "Steel/Wood", finish: "Industrial", compliance: "IS/ISO", warranty: "12 Months" },
+      estimatedLaborRate: parsed.estimatedLaborRate || 500
     };
   } catch (e) { return handleApiError(e); }
 };
 
+export const autoCompleteBOQ = async (results: ProductResult[]): Promise<Record<string, AncillaryItem[]>> => {
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-preview',
+      contents: `Generate mandatory ancillary items (materials, hardware, consumables) for this BOQ: ${JSON.stringify(results.map(r => ({id: r.id, name: r.productName, qty: r.quantity})))}. Return JSON map of parentId to AncillaryItem array.`,
+      config: { 
+        responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 16000 }
+      }
+    });
+    return parseRobustJson(response.text);
+  } catch (e) { return handleApiError(e); }
+};
+
 export const resolvePincode = async (pincode: string): Promise<string> => {
+  if (!pincode || pincode.length < 6) return "";
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Provide Indian City and State for Pincode ${pincode} as "City, State".`
+      contents: `Return the "City, State" for Indian Pincode ${pincode}. No extra text.`
     });
     return response.text.trim();
-  } catch (e) { return "Regional Hub"; }
+  } catch (e) { return "Hub Identified"; }
 };

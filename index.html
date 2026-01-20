@@ -12,12 +12,12 @@
         
         body { 
           font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
-          /* Premium Brand Gradient from Identity Guide */
           background: linear-gradient(135deg, #E8F5E9 0%, #E3F2FD 50%, #F3E5F5 100%);
           background-attachment: fixed;
           margin: 0;
           padding: 0;
           color: #1d1d1f;
+          min-height: 100vh;
         }
 
         .findr-gradient-text {
@@ -27,17 +27,39 @@
           background-clip: text;
         }
 
-        .findr-dot {
-            display: inline-block;
-            width: 0.25em;
-            height: 0.25em;
-            background: linear-gradient(135deg, #A8DADC 0%, #457B9D 100%);
-            border-radius: 50%;
-            position: relative;
-            margin-left: 0.05em;
-            box-shadow: 0 2px 8px rgba(69, 123, 157, 0.3);
-            vertical-align: baseline;
+        /* Animation Definitions to prevent "Blank Screen" issues */
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
+
+        @keyframes slideInFromBottom {
+          from { transform: translateY(20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes slideInFromTop {
+          from { transform: translateY(-20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes zoomIn {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+
+        .animate-in {
+          animation-fill-mode: forwards;
+          animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .fade-in { animation-name: fadeIn; }
+        .slide-in-from-bottom-8 { animation-name: slideInFromBottom; }
+        .slide-in-from-top-6 { animation-name: slideInFromTop; }
+        .zoom-in-95 { animation-name: zoomIn; }
+
+        .duration-700 { animation-duration: 700ms; }
+        .duration-1000 { animation-duration: 1000ms; }
 
         .glass-card {
             background: rgba(255, 255, 255, 0.25);

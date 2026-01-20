@@ -1,6 +1,18 @@
 
 export type ProductTier = 'Luxury' | 'Premium' | 'Standard' | 'Budget';
 
+export interface AncillaryItem {
+  id: string;
+  parentProductId: string;
+  name: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  rate: number;
+  total: number;
+  category: 'Material' | 'Labor' | 'Consumable' | 'Wastage';
+}
+
 export interface ProductCandidate {
   id: string;
   name: string;
@@ -12,27 +24,27 @@ export interface ProductCandidate {
   dimensions?: string; 
   boundingBox?: [number, number, number, number];
   confidence?: number;
-  isConfirmed?: boolean;
+  isVerified?: boolean;
 }
 
 export interface DetailedSpecs {
   material: string;
   finish: string;
   brandPreference?: string;
-  compliance: string; // IS Codes
-  warranty: string;   // Warranty terms
+  compliance: string; 
+  warranty: string;   
 }
 
 export interface VendorOption {
   vendor: string;
   price: string;
   numericPrice: number;
-  priceRange?: string; // e.g. "₹12k - ₹15k"
-  moq?: string; // Minimum Order Quantity
+  priceRange?: string; 
+  moq?: string; 
   unit: string;
   availability: string;
   url: string;
-  deliveryDate: string;
+  deliveryDate?: string;
   daysToDelivery: number;
   address: string;
   reliabilityScore: number;
@@ -65,6 +77,7 @@ export interface ProductResult {
   scanConfidence: number;
   specsDetail: DetailedSpecs;
   estimatedLaborRate: number;
+  ancillaryItems?: AncillaryItem[];
   thumbnail?: string; 
 }
 

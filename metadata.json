@@ -1,6 +1,6 @@
 {
-  "name": "Findr: B2B Procurement Pipeline",
-  "description": "An advanced industrial and architectural procurement application that uses visual identification and Google Search grounding to locate niche vendors, calculate logistics, and bypass retail-only marketplaces.",
+  "name": "Findr: Neural Procurement",
+  "description": "B2B procurement pipeline using visual AI and Google Search grounding to automate industrial sourcing.",
   "requestFramePermissions": [
     "camera"
   ]
