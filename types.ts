@@ -60,6 +60,15 @@ export interface GroundingLink {
   title: string;
 }
 
+export interface NegotiationStrategy {
+  targetPrice: number;
+  openingOffer: number;
+  savings: number;
+  talkingPoints: string[];
+  leverage: string[];
+  vendorPsychology: string;
+}
+
 export interface ProductResult {
   id: string;
   productName: string;

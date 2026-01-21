@@ -6,11 +6,17 @@ interface ThinkingVisualProps {
   itemsCount: number;
   mode: 'analyzing' | 'sourcing';
   activeTask?: string;
+  vendorStats?: { searched: number; verified: number };
 }
 
-const ThinkingVisual: React.FC<ThinkingVisualProps> = ({ progress, itemsCount, mode, activeTask }) => {
+const ThinkingVisual: React.FC<ThinkingVisualProps> = ({ progress, itemsCount, mode, activeTask, vendorStats }) => {
   const [logs, setLogs] = useState<string[]>([]);
   const [displayTitle, setDisplayTitle] = useState(activeTask || 'Initializing Engine...');
+  const [vendorCount, setVendorCount] = useState(0);
+  
+  // Use passed stats or simulate if 0
+  const searchedCount = vendorStats?.searched || 0;
+  const verifiedCount = vendorStats?.verified || 0;
 
   const sourcingLogs = [
     "Traversing regional B2B hubs...",
@@ -18,7 +24,7 @@ const ThinkingVisual: React.FC<ThinkingVisualProps> = ({ progress, itemsCount, m
     "Validating manufacturer certifications...",
     "Calculating logistic overheads...",
     "Verifying pricing parity...",
-    "Indexing authorized wholesale nodes...",
+    "Indexing authorized wholesale dealers...",
     "Establishing direct vendor handshakes..."
   ];
 
@@ -31,11 +37,16 @@ const ThinkingVisual: React.FC<ThinkingVisualProps> = ({ progress, itemsCount, m
     "Grounding vision confidence scores..."
   ];
 
-  // Animated Title Logic for Live Transparency
+  // Update title immediately when prop changes to show live progress
   useEffect(() => {
     if (activeTask) {
       setDisplayTitle(activeTask);
-    } else {
+    }
+  }, [activeTask]);
+
+  // Fallback animation if no activeTask provided
+  useEffect(() => {
+    if (!activeTask) {
       const titles = mode === 'analyzing' ? ["Vision Synthesis", "Geometry Mapping", "Asset Recognition"] : ["Supply Chain Sourcing", "Vendor Validation", "Pricing Discovery"];
       let i = 0;
       const t = setInterval(() => {
@@ -44,17 +55,30 @@ const ThinkingVisual: React.FC<ThinkingVisualProps> = ({ progress, itemsCount, m
       }, 3000);
       return () => clearInterval(t);
     }
-  }, [activeTask, mode]);
+  }, [mode, activeTask]);
 
+  // Background logs
   useEffect(() => {
     const sourcePool = mode === 'analyzing' ? analyzingLogs : sourcingLogs;
     const interval = setInterval(() => {
       const nextLog = sourcePool[Math.floor(Math.random() * sourcePool.length)];
       setLogs(prev => [nextLog, ...prev.slice(0, 4)]);
     }, 1200);
-
     return () => clearInterval(interval);
   }, [mode]);
+
+  // Vendor Count Simulation
+  useEffect(() => {
+    if (mode === 'sourcing' && progress > 10 && progress < 90) {
+      const interval = setInterval(() => {
+        setVendorCount(prev => {
+           if (prev >= 87) return 87;
+           return prev + Math.floor(Math.random() * 5) + 1;
+        });
+      }, 100);
+      return () => clearInterval(interval);
+    }
+  }, [mode, progress]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] w-full animate-in fade-in duration-1000">
@@ -82,13 +106,27 @@ const ThinkingVisual: React.FC<ThinkingVisualProps> = ({ progress, itemsCount, m
           </div>
         </div>
 
-        <div className="space-y-4 min-h-[120px]">
+        <div className="space-y-4 min-h-[120px] flex flex-col items-center justify-center">
           <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[#F59E0B] animate-pulse">
             Neural Reasoning Live
           </p>
-          <h2 className="text-4xl md:text-6xl font-black text-[#0F172A] tracking-tight leading-tight uppercase transition-all duration-500">
+          <h2 className="text-2xl md:text-4xl font-black text-[#0F172A] tracking-tight leading-tight uppercase transition-all duration-500 max-w-2xl break-words">
             {displayTitle}
           </h2>
+          
+          {mode === 'sourcing' && (
+             <div className="flex gap-4 animate-in slide-in-from-bottom-2 mt-2 justify-center">
+                {/* Simulated count for the 'Vendor Hunter' narrative */}
+                {vendorCount > 0 && (
+                   <div className="bg-slate-950 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-800">
+                      Network Scan: <span className="text-[#F59E0B] text-lg ml-1">{vendorCount}</span> / 87
+                   </div>
+                )}
+                <div className="bg-white text-slate-900 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 shadow-lg">
+                   Verified Nodes: <span className="text-emerald-600 text-lg ml-1">{verifiedCount || 0}</span>
+                </div>
+             </div>
+          )}
         </div>
 
         <div className="max-w-md mx-auto h-32 relative overflow-hidden bg-slate-50/50 rounded-2xl border border-slate-100 p-6 flex flex-col justify-end">

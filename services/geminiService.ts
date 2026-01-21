@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { ProductCandidate, ProductResult, VendorOption, GroundingLink, ProductTier, DetailedSpecs, AncillaryItem } from "../types";
+import { ProductCandidate, ProductResult, VendorOption, GroundingLink, ProductTier, DetailedSpecs, AncillaryItem, NegotiationStrategy } from "../types";
 
 const getAI = () => {
   const key = process.env.API_KEY;
@@ -13,6 +13,7 @@ const parseRobustJson = (text: string) => {
   try {
     return JSON.parse(text);
   } catch (e) {
+    // Attempt to extract JSON from code blocks or raw text
     const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
     if (jsonMatch) {
       try {
@@ -21,7 +22,13 @@ const parseRobustJson = (text: string) => {
         throw new Error("Neural response format mismatch.");
       }
     }
-    throw new Error("Neural response corrupted.");
+    // Attempt to clean markdown wrapper
+    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    try {
+      return JSON.parse(cleanText);
+    } catch (cleanE) {
+        throw new Error("Neural response corrupted.");
+    }
   }
 };
 
@@ -42,14 +49,59 @@ export const identifyProducts = async (base64Image: string): Promise<{ products:
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
-          { text: "Identify furniture and architectural elements for a professional BOQ. Return JSON with 'summary' and 'products' array. For each: id, name, description, category, tier, quantity, suggestedUnit, dimensions (LxWxH), boundingBox [ymin, xmin, ymax, xmax], and 'confidence' (0-100)." }
+          { text: "Analyze this image for a B2B Bill of Quantities. Identify distinct furniture, fixtures, architectural elements, and equipment. For each item, estimate its 2D bounding box [ymin, xmin, ymax, xmax] (0-1000 scale) and real-world dimensions. Return a JSON object with a 'summary' of the scene and a 'products' array." }
         ]
       },
-      config: { responseMimeType: "application/json" }
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            summary: { type: Type.STRING },
+            products: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  name: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  category: { type: Type.STRING },
+                  tier: { type: Type.STRING, enum: ["Luxury", "Premium", "Standard", "Budget"] },
+                  quantity: { type: Type.NUMBER },
+                  suggestedUnit: { type: Type.STRING },
+                  dimensions: { type: Type.STRING },
+                  confidence: { type: Type.NUMBER },
+                  boundingBox: {
+                    type: Type.ARRAY,
+                    items: { type: Type.NUMBER },
+                    description: "ymin, xmin, ymax, xmax normalized to 1000"
+                  }
+                },
+                required: ["name", "category", "quantity"]
+              }
+            }
+          },
+          required: ["summary", "products"]
+        }
+      }
     });
+
     const parsed = parseRobustJson(response.text);
+    
+    // Post-process to ensure valid bounding boxes and IDs
+    const validProducts = (Array.isArray(parsed.products) ? parsed.products : []).map((p: any, idx: number) => ({
+      ...p,
+      id: p.id || `auto-${Date.now()}-${idx}`,
+      tier: p.tier || "Standard",
+      quantity: p.quantity || 1,
+      suggestedUnit: p.suggestedUnit || "Nos",
+      confidence: p.confidence || 85,
+      boundingBox: (p.boundingBox && p.boundingBox.length === 4) ? p.boundingBox : [0,0,0,0]
+    }));
+
     return {
-      products: Array.isArray(parsed.products) ? parsed.products : [],
+      products: validProducts,
       summary: typeof parsed.summary === 'string' ? parsed.summary : "Visual analysis complete."
     };
   } catch (e) { return handleApiError(e); }
@@ -68,7 +120,7 @@ export const fetchVendorsForProduct = async (product: ProductCandidate, zipCode:
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        thinkingConfig: { thinkingBudget: 32768 },
+        thinkingConfig: { thinkingBudget: 24000 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -159,6 +211,7 @@ export const autoCompleteBOQ = async (results: ProductResult[]): Promise<Record<
       2. RATE: Use realistic current B2B market rates in INR (India). DO NOT use zero or dummy values.
       3. TOTAL: Must be correctly calculated as (quantity * rate).
       4. CATEGORY: Assign to 'Material', 'Labor', 'Consumable', or 'Wastage'.
+      5. STRICT MATCHING: The Keys of the returned JSON object MUST match the 'id' of the provided assets exactly.
 
       RETURN FORMAT: A JSON object where keys are parentProductId and values are arrays of AncillaryItem objects.
       Each AncillaryItem: { id, parentProductId, name, description, quantity, unit, rate, total, category }
@@ -177,20 +230,57 @@ export const autoCompleteBOQ = async (results: ProductResult[]): Promise<Record<
     
     // Post-process to ensure no zero values and fix calculations
     Object.keys(parsed).forEach(parentId => {
-      parsed[parentId] = parsed[parentId].map(item => {
-        const qty = item.quantity || 1;
-        const rate = item.rate || 100;
-        return {
-          ...item,
-          quantity: qty,
-          rate: rate,
-          total: qty * rate
-        };
-      });
+      if (Array.isArray(parsed[parentId])) {
+        parsed[parentId] = parsed[parentId].map(item => {
+          const qty = item.quantity || 1;
+          const rate = item.rate || 100;
+          return {
+            ...item,
+            quantity: qty,
+            rate: rate,
+            total: qty * rate
+          };
+        });
+      }
     });
 
     return parsed;
   } catch (e) { return handleApiError(e); }
+};
+
+export const generateNegotiationTactics = async (productName: string, vendorName: string, currentPrice: number, quantity: number): Promise<NegotiationStrategy> => {
+  try {
+    const ai = getAI();
+    const prompt = `
+      Act as a ruthless B2B procurement negotiator.
+      Product: "${productName}", Qty: ${quantity}.
+      Vendor: "${vendorName}", Current Quote: ${currentPrice} INR per unit.
+      
+      Determine a realistic "Target Price" (approx 10-15% lower) and "Opening Offer" (20% lower).
+      Provide 3 specific, hard-hitting talking points to use in an email or call.
+      Identify 2 leverage points (e.g. bulk order, competitor quotes).
+      
+      Return JSON: { targetPrice, openingOffer, savings, talkingPoints: [], leverage: [], vendorPsychology }
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
+    });
+
+    return parseRobustJson(response.text);
+  } catch (e) {
+    // Fallback strategy if AI fails
+    return {
+      targetPrice: Math.floor(currentPrice * 0.9),
+      openingOffer: Math.floor(currentPrice * 0.82),
+      savings: Math.floor(currentPrice * 0.1 * quantity),
+      talkingPoints: ["Mention immediate payment terms for discount.", "Cite lower rates from regional competitor."],
+      leverage: ["Bulk volume commitment", "Future project pipeline"],
+      vendorPsychology: "Vendor likely prioritized volume over margin."
+    };
+  }
 };
 
 export const resolvePincode = async (pincode: string): Promise<string> => {
