@@ -110,9 +110,30 @@ const BOQTable: React.FC<BOQTableProps> = ({ results, sourceImage, onUpdateQuant
 
     try {
       await new Promise(r => setTimeout(r, 600)); 
-      await html2pdf().set(opt).from(reportRef.current).save();
+      
+      // Force download for mobile: Generate Blob and click anchor
+      const worker = html2pdf().set(opt).from(reportRef.current);
+      const pdfBlob = await worker.output('blob');
+      
+      const url = window.URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Findr_BOQ_${manifestId}.pdf`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+
     } catch (e) { 
-      console.error(e); 
+      console.error("PDF Download Error", e); 
+      // Fallback
+      try {
+        await html2pdf().set(opt).from(reportRef.current).save();
+      } catch (err) { console.error("Fallback Error", err); }
     } finally { 
       setScale(originalScale);
       setIsExporting(false); 
@@ -157,7 +178,7 @@ const BOQTable: React.FC<BOQTableProps> = ({ results, sourceImage, onUpdateQuant
   const fmt = (val: any) => Number(val).toLocaleString('en-IN');
 
   return (
-    <div className="w-full flex flex-col items-center pb-24" ref={containerRef}>
+    <div className="w-full flex flex-col items-center pb-32" ref={containerRef}>
       <style>{`
         .pdf-manifest { width: 1122px; background: #fff; color: #1a1a1a; font-family: 'Inter', sans-serif; transform-origin: top center; }
         .pdf-page { width: 1122px; min-height: 794px; padding: 40px 60px; box-sizing: border-box; background: white; position: relative; overflow: hidden; display: flex; flex-direction: column; }
@@ -326,8 +347,8 @@ const BOQTable: React.FC<BOQTableProps> = ({ results, sourceImage, onUpdateQuant
       {/* Floating Action Bar - Mobile Optimized */}
       <div data-html2canvas-ignore="true" className="fixed bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 w-[94%] max-w-6xl flex flex-col md:flex-row items-center bg-[#0F172A] p-2 rounded-[2rem] md:rounded-[2.5rem] border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.4)] z-[100] transition-all group overflow-hidden">
         
-        {/* Total Value Section */}
-        <div className="w-full md:flex-1 flex justify-between md:justify-start items-center px-6 py-3 border-b border-white/10 md:border-b-0 md:gap-10">
+        {/* Total Value Section - Adjusted width for mobile */}
+        <div className="w-full md:flex-1 flex justify-between md:justify-start items-center px-4 md:px-6 py-3 border-b border-white/10 md:border-b-0 md:gap-10 shrink-0">
           <div className="flex flex-col">
             <span className="text-[8px] font-black text-[#F59E0B] uppercase tracking-[0.4em] hidden md:block">Verified Manifest</span>
             <span className="text-[9px] md:text-[11px] font-black text-white uppercase tracking-wider">{manifestId}</span>
@@ -335,7 +356,7 @@ const BOQTable: React.FC<BOQTableProps> = ({ results, sourceImage, onUpdateQuant
           <div className="h-8 w-px bg-white/10 hidden md:block" />
           <div className="flex flex-col text-right md:text-left">
             <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-[0.4em]">Node Value</span>
-            <span className="text-[11px] md:text-[13px] font-black text-[#F59E0B] tracking-tight">₹{fmt(totals.grand)}</span>
+            <span className="text-[13px] md:text-[15px] font-black text-[#F59E0B] tracking-tight">₹{fmt(totals.grand)}</span>
           </div>
         </div>
 

@@ -152,14 +152,15 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                 const conf = getConfidenceLevel(product.confidence || 0);
                 
                 return (
-                  <div key={product.id} className="relative h-[420px] md:h-[520px]">
+                  <div key={product.id} className="relative h-[480px] md:h-[520px]">
                     <div 
                       onClick={() => onToggle(product.id)}
                       className={`absolute inset-0 cursor-pointer rounded-[2.5rem] border-[3px] transition-all duration-300 flex flex-col bg-white overflow-hidden hover:-translate-y-2 active:scale-[0.98]
                         ${isSelected ? 'border-blue-600 shadow-2xl shadow-blue-900/10 z-10' : 'border-transparent shadow-lg hover:shadow-xl'}
                       `}
                     >
-                      <div className="w-full aspect-square bg-slate-100 overflow-hidden relative border-b border-slate-100 shrink-0">
+                      {/* Image Container: Fixed height on mobile (h-56) to save space, Aspect Square on desktop */}
+                      <div className="w-full h-56 md:h-auto md:aspect-square bg-slate-100 overflow-hidden relative border-b border-slate-100 shrink-0">
                          {sourceImage && <CroppedPreview src={sourceImage} box={product.boundingBox} />}
                          
                          {/* Selection Indicator */}
@@ -177,20 +178,22 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                          </div>
                       </div>
                       
-                      <div className="p-6 flex-1 flex flex-col relative">
-                        <h4 className="font-black text-slate-900 text-lg md:text-xl uppercase tracking-tight leading-none line-clamp-2 mb-2">{product.name}</h4>
-                        
-                        {!isAreaUnit(product.suggestedUnit) && (
-                          <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded w-fit mb-3">
-                            DIM: {product.dimensions || 'Verify'}
-                          </div>
-                        )}
-                        
-                        <p className="text-xs text-slate-950 font-bold leading-relaxed line-clamp-3 mb-4">{product.description}</p>
+                      <div className="p-6 flex-1 flex flex-col relative justify-between">
+                         <div>
+                            <h4 className="font-black text-slate-900 text-lg md:text-xl uppercase tracking-tight leading-none line-clamp-2 mb-2">{product.name}</h4>
+                            
+                            {!isAreaUnit(product.suggestedUnit) && (
+                            <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded w-fit mb-3">
+                                DIM: {product.dimensions || 'Verify'}
+                            </div>
+                            )}
+                            
+                            <p className="text-xs text-slate-950 font-bold leading-relaxed line-clamp-2 md:line-clamp-3 mb-2">{product.description}</p>
+                         </div>
                         
                         <button 
                           onClick={(e) => { e.stopPropagation(); setVerifyingItem(product); }}
-                          className={`mt-auto w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all
+                          className={`w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all mt-auto
                             ${product.isVerified 
                               ? 'bg-slate-100 text-slate-400' 
                               : 'bg-slate-900 text-white hover:bg-blue-600 shadow-xl'}
@@ -205,7 +208,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
               })}
               
               {/* Manual Add Card */}
-              <div onClick={() => setIsAdding(true)} className="group cursor-pointer rounded-[2.5rem] border-4 border-dashed border-slate-200 hover:border-blue-400 bg-slate-50 hover:bg-white transition-all flex flex-col items-center justify-center h-[420px] md:h-[520px] p-8 text-center min-h-[350px]">
+              <div onClick={() => setIsAdding(true)} className="group cursor-pointer rounded-[2.5rem] border-4 border-dashed border-slate-200 hover:border-blue-400 bg-slate-50 hover:bg-white transition-all flex flex-col items-center justify-center h-[480px] md:h-[520px] p-8 text-center min-h-[350px]">
                 <div className="w-16 h-16 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center text-slate-300 group-hover:text-blue-500 group-hover:border-blue-500 group-hover:scale-110 transition-all shadow-sm">
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 5v14M5 12h14"/></svg>
                 </div>
@@ -287,24 +290,6 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                 </div>
              </form>
            </div>
-        </div>
-      )}
-
-      {/* Manual Injection Modal */}
-      {isAdding && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3rem] w-full max-w-lg p-8 md:p-10 overflow-hidden shadow-2xl border border-slate-100">
-               <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-8">Manual Injection</h3>
-               <form onSubmit={handleManualSubmit} className="space-y-4">
-                 <input autoFocus required value={newName} onChange={e => setNewName(e.target.value)} placeholder="Asset Name" className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-4 px-6 font-bold text-slate-900 outline-none focus:border-blue-500" />
-                 <input value={newDims} onChange={e => setNewDims(e.target.value)} placeholder="Dimensions (Optional)" className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-4 px-6 font-bold text-slate-900 outline-none focus:border-blue-500" />
-                 <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description" className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-4 px-6 font-medium text-sm text-slate-900 outline-none focus:border-blue-500" rows={3} />
-                 <div className="flex gap-4 pt-4">
-                   <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-4 text-slate-400 font-black text-[10px] uppercase">Cancel</button>
-                   <button type="submit" className="flex-2 px-10 py-4 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase shadow-xl hover:bg-blue-600">Inject</button>
-                 </div>
-               </form>
-          </div>
         </div>
       )}
 

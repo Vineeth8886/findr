@@ -92,7 +92,7 @@ const ResultView: React.FC<ResultViewProps> = ({ results, sourceImage, onUpdateQ
   return (
     <div className="space-y-12 md:space-y-16 pb-32 px-0 md:px-2">
       {/* View Mode Toggle - Adjusted sticky top for mobile visibility */}
-      <div className="no-print flex justify-center md:justify-end bg-white/60 backdrop-blur-xl p-3 md:p-4 rounded-3xl border border-slate-100 shadow-sm sticky top-24 md:top-28 z-40 mx-4 md:mx-0">
+      <div className="no-print flex justify-center md:justify-end bg-white/60 backdrop-blur-xl p-3 md:p-4 rounded-3xl border border-slate-100 shadow-sm sticky top-[80px] md:top-28 z-40 mx-4 md:mx-0">
         <div className="bg-slate-100 p-1 rounded-full border border-slate-200 flex items-center w-full md:w-auto">
           <button 
             onClick={() => setViewMode('grid')} 
