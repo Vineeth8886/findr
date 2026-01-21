@@ -141,15 +141,55 @@ export const fetchVendorsForProduct = async (product: ProductCandidate, zipCode:
 export const autoCompleteBOQ = async (results: ProductResult[]): Promise<Record<string, AncillaryItem[]>> => {
   try {
     const ai = getAI();
+    const prompt = `
+      Act as a Professional Quantity Surveyor and Procurement Manager.
+      Review the following primary assets identified for a Bill of Quantities (BOQ):
+      ${JSON.stringify(results.map(r => ({
+        id: r.id, 
+        name: r.productName, 
+        qty: r.quantity, 
+        unit: r.unit,
+        tier: r.tier
+      })))}
+
+      TASK: Generate a list of MANDATORY ancillary items (installation hardware, surface preparation materials, consumables, and labor tasks) required to complete the installation of each primary asset.
+
+      RULES FOR PRICING & QUANTITY:
+      1. QUANTITY: Must be logically calculated based on the primary asset qty. (e.g., For 100sqft tiles, add 8-10 bags of adhesive).
+      2. RATE: Use realistic current B2B market rates in INR (India). DO NOT use zero or dummy values.
+      3. TOTAL: Must be correctly calculated as (quantity * rate).
+      4. CATEGORY: Assign to 'Material', 'Labor', 'Consumable', or 'Wastage'.
+
+      RETURN FORMAT: A JSON object where keys are parentProductId and values are arrays of AncillaryItem objects.
+      Each AncillaryItem: { id, parentProductId, name, description, quantity, unit, rate, total, category }
+    `;
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: `Generate mandatory ancillary items (materials, hardware, consumables) for this BOQ: ${JSON.stringify(results.map(r => ({id: r.id, name: r.productName, qty: r.quantity})))}. Return JSON map of parentId to AncillaryItem array.`,
+      contents: prompt,
       config: { 
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 16000 }
+        thinkingConfig: { thinkingBudget: 24000 }
       }
     });
-    return parseRobustJson(response.text);
+    
+    const parsed: Record<string, AncillaryItem[]> = parseRobustJson(response.text);
+    
+    // Post-process to ensure no zero values and fix calculations
+    Object.keys(parsed).forEach(parentId => {
+      parsed[parentId] = parsed[parentId].map(item => {
+        const qty = item.quantity || 1;
+        const rate = item.rate || 100;
+        return {
+          ...item,
+          quantity: qty,
+          rate: rate,
+          total: qty * rate
+        };
+      });
+    });
+
+    return parsed;
   } catch (e) { return handleApiError(e); }
 };
 

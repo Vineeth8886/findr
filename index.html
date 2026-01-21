@@ -4,30 +4,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Findr. | Visual Procurement Reimagined</title>
+    <title>Findr. | Premium B2B Procurement</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
         
         body { 
-          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
-          background: linear-gradient(135deg, #E8F5E9 0%, #E3F2FD 50%, #F3E5F5 100%);
-          background-attachment: fixed;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          background: #FFFFFF;
           margin: 0;
           padding: 0;
-          color: #1d1d1f;
+          color: #1E293B;
           min-height: 100vh;
         }
 
-        .findr-gradient-text {
-          background: linear-gradient(135deg, #A8DADC 0%, #457B9D 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
+        .findr-gold-glow {
+          box-shadow: 0 0 40px rgba(245, 158, 11, 0.15);
         }
 
-        /* Animation Definitions to prevent "Blank Screen" issues */
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -38,16 +33,6 @@
           to { transform: translateY(0); opacity: 1; }
         }
 
-        @keyframes slideInFromTop {
-          from { transform: translateY(-20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-
-        @keyframes zoomIn {
-          from { transform: scale(0.95); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-
         .animate-in {
           animation-fill-mode: forwards;
           animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -55,24 +40,36 @@
 
         .fade-in { animation-name: fadeIn; }
         .slide-in-from-bottom-8 { animation-name: slideInFromBottom; }
-        .slide-in-from-top-6 { animation-name: slideInFromTop; }
-        .zoom-in-95 { animation-name: zoomIn; }
 
         .duration-700 { animation-duration: 700ms; }
         .duration-1000 { animation-duration: 1000ms; }
 
-        .glass-card {
-            background: rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(40px) saturate(180%);
-            -webkit-backdrop-filter: blur(40px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+        .premium-card {
+            background: #FFFFFF;
+            border: 1px solid #F1F5F9;
+            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+            border-radius: 12px;
         }
         
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
         main { isolation: isolate; }
+
+        /* Custom Scrollbar for premium feel */
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: #F8FAF9;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #E2E8F0;
+          border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #CBD5E1;
+        }
     </style>
 <script type="importmap">
 {
